@@ -8,5 +8,5 @@ const entries = [
 export const demoPeople = entries.map(([nome, tipo], index) => ({
   id: `demo-rendall-77-${index + 1}`,
   condominioId: "cond-001", unidade: "77", nome, tipo,
-  telefone: `(00) 00000-00${String(index + 1).padStart(2, "0")}`
+  telefone: `(11) 90000-00${String(index + 1).padStart(2, "0")}`
 }));

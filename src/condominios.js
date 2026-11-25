@@ -2,7 +2,7 @@
 export const condominios = [
   {
     "id": "cond-001",
-    "nome": "0-rendall"
+    "nome": "rendall"
   },
   {
     "id": "cond-002",

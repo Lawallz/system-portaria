@@ -39,6 +39,10 @@ function App() {
   const [name, setName] = useState("");
   const [type, setType] = useState("Morador");
   const [phone, setPhone] = useState("");
+  const [vehicle, setVehicle] = useState("");
+  const [lookup, setLookup] = useState("");
+  const [section, setSection] = useState("Atendimento");
+  const [newRule, setNewRule] = useState("");
   const [modal, setModal] = useState(null);
   const [authorization, setAuthorization] = useState("Interfone com morador");
   const [authorizedBy, setAuthorizedBy] = useState("");
@@ -63,14 +67,18 @@ function App() {
   const demo = condo?.id === "cond-001" && unit === "77" ? demoPeople : [];
   const custom = data.pessoas.filter(p => p.condominioId === condo?.id && p.unidade === unit);
   const people = [...demo.filter(p => !custom.some(c => c.id === p.id)), ...custom];
+  const condoPeople = [...(condo?.id === "cond-001" ? demoPeople : []), ...data.pessoas.filter(p => p.condominioId === condo?.id)];
+  const lookupResults = lookup.trim() ? condoPeople.filter(p => normalize(p.nome).includes(normalize(lookup.trim())) || normalize(p.veiculo || "").includes(normalize(lookup.trim()))) : [];
+  const condoRecords = data.registros.filter(r => r.condominioId === condo?.id);
+  const condoRules = data.regras?.[condo?.id] || [];
   const residents = people.filter(p => p.tipo === "Morador" || p.tipo === "Proprietário");
   const records = data.registros.filter(r => r.condominioId === condo?.id && r.unidade === unit);
   function save(next) { setData(next); localStorage.setItem(KEY, JSON.stringify(next)); }
   function addPerson(event) {
     event.preventDefault();
     if (!name.trim()) return;
-    save({ ...data, pessoas: [...data.pessoas, { id: crypto.randomUUID(), condominioId: condo.id, unidade: unit, nome: name.trim(), tipo: type, telefone: phone.trim() }] });
-    setName(""); setPhone(""); setMessage("Pessoa cadastrada nesta unidade, somente neste navegador.");
+    save({ ...data, pessoas: [...data.pessoas, { id: crypto.randomUUID(), condominioId: condo.id, unidade: unit, nome: name.trim(), tipo: type, telefone: phone.trim(), veiculo: vehicle.trim().toUpperCase() }] });
+    setName(""); setPhone(""); setVehicle(""); setMessage("Pessoa cadastrada nesta unidade, somente neste navegador.");
   }
   function openRecord(action, person = null) {
     setModal({ action, person });
@@ -109,7 +117,13 @@ function App() {
     save({ ...data, registros: [record, ...data.registros] });
     setModal(null); setMessage(sendRequested ? "Encomenda salva · envio ao WhatsApp simulado com sucesso. Nenhuma mensagem real foi enviada." : "Registro salvo neste navegador."); setTab("Histórico");
   }
-  function selectCondo(c) { setCondo(c); setUnit(""); setUnitInput(""); setTab("Pessoas"); setMessage(""); }
+  function selectCondo(c) { setCondo(c); setUnit(""); setUnitInput(""); setTab("Pessoas"); setSection("Atendimento"); setLookup(""); setMessage(""); }
+  function addRule(event) {
+    event.preventDefault();
+    if (!newRule.trim()) return;
+    save({ ...data, regras: { ...data.regras, [condo.id]: [...condoRules, { id: crypto.randomUUID(), texto: newRule.trim() }] } });
+    setNewRule("");
+  }
   return <div className="app">
     <aside className="sidebar">
       <div className="brand"><span className="brand-icon">◆</span><div><strong>system<span>portaria</span></strong><small>Central de operações</small></div></div>
@@ -122,14 +136,18 @@ function App() {
       <header><div className="crumb">Operações <span>/</span> {condo?.nome || "Visão geral"} {unit && <> <span>/</span> Unidade {unit}</>}</div><span className="status">● Ambiente de demonstração</span></header>
       <div className="content">
       {!condo ? <><div className="eyebrow">SISTEMA DE PORTARIA</div><h1>Um fluxo mais simples para cada atendimento.</h1><p className="lead">Selecione um condomínio para localizar uma unidade e registrar movimentações sem redigitar os dados de cada pessoa.</p><div className="welcome-grid"><div className="tile"><strong>0</strong><span>Rendall · empresa</span></div><div className="tile"><strong>52</strong><span>Condomínios atendidos</span></div><div className="tile"><strong>77</strong><span>Unidade de demonstração</span></div></div><div className="notice">Para testar: selecione Rendall (0) e abra a unidade 77. Os dados e registros são demonstrativos e ficam neste navegador.</div></> :
-      <><div className="eyebrow">CONDOMÍNIO {condominios.indexOf(condo)} {condo.id === "cond-001" ? "· EMPRESA" : ""}</div><h1>{condo.nome}</h1><p className="lead">Pesquise uma unidade para ver pessoas e lançar atendimentos.</p>
+      <><div className="eyebrow">CONDOMÍNIO {condominios.indexOf(condo)} {condo.id === "cond-001" ? "· EMPRESA" : ""}</div><h1>{condo.nome}</h1><p className="lead">Encontre uma unidade, morador ou veículo e registre o atendimento.</p>
+      <nav className="section-nav" aria-label="Seções do condomínio">{["Atendimento", "Encomendas", "Liberações", "Regras"].map(item => <button key={item} className={section === item ? "active" : ""} onClick={() => setSection(item)}>{item}</button>)}</nav>
+      {section === "Regras" ? <div className="section-panel"><h2>Regras · {condo.nome}</h2><p className="muted">Cadastre orientações específicas deste condomínio para consultar durante o atendimento. Armazenamento local de demonstração.</p>{condoRules.length ? <div className="rule-list">{condoRules.map((rule, index) => <div className="rule-row" key={rule.id}><span>{index + 1}</span><p>{rule.texto}</p><button className="outline" type="button" aria-label={`Remover regra ${index + 1}`} onClick={() => save({ ...data, regras: { ...data.regras, [condo.id]: condoRules.filter(item => item.id !== rule.id) } })}>Remover</button></div>)}</div> : <div className="empty">Nenhuma regra cadastrada para este condomínio.</div>}<form className="rule-form" onSubmit={addRule}><label>Nova regra<textarea required value={newRule} onChange={e => setNewRule(e.target.value)} placeholder="Ex.: prestadores entram somente com autorização da zeladoria" /></label><button type="submit">Adicionar regra</button></form></div> :
+      section === "Encomendas" || section === "Liberações" ? <div className="section-panel"><div className="section-head"><h2>{section} · {condo.nome}</h2><button className="outline" onClick={() => setSection("Atendimento")}>Abrir atendimento</button></div>{condoRecords.filter(r => section === "Encomendas" ? r.acao === "Encomenda" : r.acao !== "Encomenda").length ? condoRecords.filter(r => section === "Encomendas" ? r.acao === "Encomenda" : r.acao !== "Encomenda").map(r => <div className="entry" key={r.id}><div className="entry-icon">{r.acao === "Encomenda" ? "▣" : "↗"}</div><div className="entry-body"><strong>{r.pessoaNome} · unidade {r.unidade}</strong><p>{r.acao}{r.movimentacao ? " · " + r.movimentacao : ""}{r.resultado ? " · " + r.resultado : ""}{r.destino ? " · " + r.destino : ""}{r.autorizacao ? " · " + r.autorizacao : ""}</p></div><time>{new Date(r.criadoEm).toLocaleString("pt-BR")}</time></div>) : <div className="empty">Nenhum registro de {section.toLowerCase()} neste condomínio.</div>}</div> : <>
+      <div className="lookup"><label htmlFor="person-search">Buscar pessoa ou veículo no condomínio</label><input id="person-search" value={lookup} onChange={e => setLookup(e.target.value)} placeholder="Nome do morador ou identificação do veículo" />{lookup.trim() && <div className="lookup-results">{lookupResults.length ? lookupResults.map(p => <button key={p.id} type="button" onClick={() => { setUnit(p.unidade); setUnitInput(p.unidade); setTab("Pessoas"); setLookup(""); }}><strong>{p.nome}</strong><span>{p.tipo} · unidade {p.unidade}{p.veiculo ? " · veículo " + p.veiculo : ""}</span><span>Ver unidade →</span></button>) : <p className="muted">Nenhuma pessoa ou veículo encontrado neste condomínio.</p>}</div>}</div>
       <form className="search-unit" onSubmit={e => { e.preventDefault(); if (unitInput.trim()) { setUnit(unitInput.trim()); setMessage(""); setTab("Pessoas"); } }}><label htmlFor="unit">Número ou identificação da unidade</label><div className="search-row"><input id="unit" autoComplete="off" placeholder={condo.id === "cond-001" ? "Ex.: 77" : "Ex.: 101, bloco A / 42"} value={unitInput} onChange={e => setUnitInput(e.target.value)} /><button type="submit">Abrir unidade →</button></div>{condo.id === "cond-001" && <p className="hint">Unidade de demonstração: 77</p>}</form>
       {unit && <><div className="unit-heading"><div><div className="eyebrow">ATENDIMENTO EM ANDAMENTO</div><h2>Unidade {unit}</h2><span className="muted">{condo.nome} · {people.length} pessoa(s) cadastrada(s)</span></div><button className="outline" onClick={() => openRecord("Encomenda")}>+ Registrar encomenda</button></div>
       {demo.length > 0 && <div className="notice demo-notice">Unidade de demonstração: telefones fictícios; o botão Salvar e enviar ao WhatsApp apenas simula o envio.</div>}
       {message && <p role="status" className="success">{message}</p>}
       <div className="tabs"><button className={tab === "Pessoas" ? "active" : ""} onClick={() => setTab("Pessoas")}>Pessoas cadastradas</button><button className={tab === "Histórico" ? "active" : ""} onClick={() => setTab("Histórico")}>Histórico ({records.length})</button></div>
-      {tab === "Pessoas" ? <><div className="section-head"><h3>Pessoas da unidade</h3><span className="muted">Encomendas e liberações diretamente em cada cadastro</span></div>{people.length ? <div className="cards">{people.map(p => <div className="person" key={p.id}><div className="person-top"><span className="avatar">{p.nome[0].toUpperCase()}</span><div><strong>{p.nome}</strong><small>{p.tipo} · {p.telefone || "Sem telefone"}</small></div></div><div className="actions"><button onClick={() => openRecord("Liberação", p)}>Registrar liberação</button><button onClick={() => openRecord("Encomenda", p)}>Encomenda</button></div></div>)}</div> : <div className="empty">Ainda não há pessoas cadastradas nesta unidade. Cadastre a primeira abaixo.</div>}
-      <form className="register" onSubmit={addPerson}><h3>Adicionar pessoa à unidade</h3><div className="form-grid"><label>Nome<input required value={name} onChange={e => setName(e.target.value)} placeholder="Nome ou identificação" /></label><label>Perfil<select value={type} onChange={e => setType(e.target.value)}>{types.map(t => <option key={t}>{t}</option>)}</select></label><label>Telefone (opcional)<input value={phone} onChange={e => setPhone(e.target.value)} placeholder="Use apenas dados fictícios" /></label></div><button type="submit">Cadastrar pessoa</button></form></> :
+      {tab === "Pessoas" ? <><div className="section-head"><h3>Pessoas da unidade</h3><span className="muted">Encomendas e liberações diretamente em cada cadastro</span></div>{people.length ? <div className="people-list">{people.map(p => <div className="person" key={p.id}><div className="person-top"><span className="avatar">{p.nome[0].toUpperCase()}</span><div className="person-info"><strong>{p.nome}</strong><small>{p.tipo} · {p.telefone || "Sem telefone"}{p.veiculo ? " · Veículo " + p.veiculo : ""}</small></div></div><div className="actions"><button title={`Registrar liberação de ${p.nome}`} aria-label={`Registrar liberação de ${p.nome}`} onClick={() => openRecord("Liberação", p)}>↗ <span>Liberação</span></button><button title={`Registrar encomenda para ${p.nome}`} aria-label={`Registrar encomenda para ${p.nome}`} onClick={() => openRecord("Encomenda", p)}>▣ <span>Encomenda</span></button></div></div>)}</div> : <div className="empty">Ainda não há pessoas cadastradas nesta unidade. Cadastre a primeira abaixo.</div>}
+      <form className="register" onSubmit={addPerson}><h3>Adicionar pessoa à unidade</h3><div className="form-grid person-form-grid"><label>Nome<input required value={name} onChange={e => setName(e.target.value)} placeholder="Nome ou identificação" /></label><label>Perfil<select value={type} onChange={e => setType(e.target.value)}>{types.map(t => <option key={t}>{t}</option>)}</select></label><label>Telefone (opcional)<input value={phone} onChange={e => setPhone(e.target.value)} placeholder="Use apenas dados fictícios" /></label><label>Veículo (opcional)<input value={vehicle} onChange={e => setVehicle(e.target.value)} placeholder="Identificação ou placa" /></label></div><button type="submit">Cadastrar pessoa</button></form></> :
       <div className="history">{records.length ? records.map(r => <div className="entry" key={r.id}>
         <div className="entry-icon">{r.acao === "Encomenda" ? "▣" : "↗"}</div>
         <div className="entry-body"><strong>{r.acao} · {r.pessoaNome}</strong>
@@ -137,7 +155,7 @@ function App() {
           {r.envioWhatsapp === "Simulado" && <small className="simulated">✓ Envio ao WhatsApp simulado · nenhuma mensagem real enviada</small>}
         </div><time>{new Date(r.criadoEm).toLocaleString("pt-BR")}</time>
       </div>) : <div className="empty">Nenhum registro nesta unidade ainda.</div>}</div>}
-      </>}</>}
+      </>}</>}</>}
       </div>
     </main>
     {modal && <div className="overlay" onMouseDown={e => { if (e.target === e.currentTarget) setModal(null); }}><form className="dialog" onSubmit={addRecord}><div className="dialog-head"><div><div className="eyebrow">{condo.nome.toUpperCase()} · UNIDADE {unit}</div><h2>Registrar {modal.action.toLowerCase()}</h2><p>{modal.person?.nome || "Selecione o destinatário"}</p></div><button type="button" className="close" onClick={() => setModal(null)} aria-label="Fechar">×</button></div>

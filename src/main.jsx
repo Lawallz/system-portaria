@@ -6,7 +6,14 @@ import "./style.css";
 
 const KEY = "system-portaria-prototipo-v2";
 const types = ["Proprietário", "Morador", "Visitante", "Prestador", "Colaborador"];
-const authorizations = ["Interfone com morador", "Pré-liberação", "Morador presencial", "Zeladoria", "Cadastro confirmado", "Outro"];
+const authorizationByType = {
+  Proprietário: ["Cadastro confirmado", "Interfone com morador", "Zeladoria", "Outro"],
+  Morador: ["Cadastro confirmado", "Interfone com morador", "Zeladoria", "Outro"],
+  Visitante: ["Interfone com morador", "Pré-liberação informada", "Morador presencial", "Zeladoria", "Outro"],
+  Prestador: ["Interfone com morador", "Pré-liberação informada", "Morador presencial", "Zeladoria", "Outro"],
+  Colaborador: ["Pré-liberação informada", "Zeladoria", "Interfone com morador", "Outro"]
+};
+const serviceTypes = ["Limpeza", "Manutenção", "Reforma", "Instalação", "Entrega de serviço", "Outro"];
 const destinations = ["Armário", "Gaveta", "Coletada pelo morador", "Coletada pelo zelador", "Mesinha", "Clausura", "Centro de medição", "Outro local"];
 const companies = ["Mercado Livre", "Correios", "Compra online", "Shopee", "Amazon", "Shein", "AliExpress", "Outros"];
 const reasons = ["Entregador retornou com a encomenda devido à pressa", "Precisava de palavra-chave e o morador não atendeu", "Sem contato com a unidade", "Morador recusou a entrega", "Outros"];
@@ -33,8 +40,13 @@ function App() {
   const [type, setType] = useState("Morador");
   const [phone, setPhone] = useState("");
   const [modal, setModal] = useState(null);
-  const [authorization, setAuthorization] = useState(authorizations[0]);
+  const [authorization, setAuthorization] = useState("Interfone com morador");
   const [authorizedBy, setAuthorizedBy] = useState("");
+  const [otherAuthorization, setOtherAuthorization] = useState("");
+  const [otherApprover, setOtherApprover] = useState("");
+  const [movement, setMovement] = useState("Entrada");
+  const [serviceType, setServiceType] = useState(serviceTypes[0]);
+  const [otherService, setOtherService] = useState("");
   const [detail, setDetail] = useState("");
   const [destination, setDestination] = useState(destinations[0]);
   const [company, setCompany] = useState("");
@@ -51,6 +63,7 @@ function App() {
   const demo = condo?.id === "cond-001" && unit === "77" ? demoPeople : [];
   const custom = data.pessoas.filter(p => p.condominioId === condo?.id && p.unidade === unit);
   const people = [...demo.filter(p => !custom.some(c => c.id === p.id)), ...custom];
+  const residents = people.filter(p => p.tipo === "Morador" || p.tipo === "Proprietário");
   const records = data.registros.filter(r => r.condominioId === condo?.id && r.unidade === unit);
   function save(next) { setData(next); localStorage.setItem(KEY, JSON.stringify(next)); }
   function addPerson(event) {
@@ -61,8 +74,11 @@ function App() {
   }
   function openRecord(action, person = null) {
     setModal({ action, person });
-    setAuthorization(person?.tipo === "Visitante" ? "Interfone com morador" : person?.tipo === "Proprietário" || person?.tipo === "Morador" ? "Cadastro confirmado" : "Pré-liberação");
-    setAuthorizedBy(""); setDetail(""); setCompany(companies[0]); setOtherCompany(""); setDestination(destinations[0]); setOtherDestination("");
+    const initialAuthorization = (authorizationByType[person?.tipo] || authorizationByType.Visitante)[0];
+    setAuthorization(initialAuthorization);
+    setAuthorizedBy("");
+    setOtherAuthorization(""); setOtherApprover(""); setMovement("Entrada"); setServiceType(serviceTypes[0]); setOtherService("");
+    setDetail(""); setCompany(companies[0]); setOtherCompany(""); setDestination(destinations[0]); setOtherDestination("");
     setOutcome("Recebida"); setReason(reasons[0]); setOtherReason("");
     setSize("Pequena"); setPackageType("Pacote"); setOtherPackageType("");
   }
@@ -80,12 +96,14 @@ function App() {
       id: crypto.randomUUID(), condominioId: condo.id, unidade: unit,
       pessoaId: person?.id || null, pessoaNome: person?.nome || "Destinatário não cadastrado",
       categoria: isPackage ? "Encomenda" : person?.tipo, acao: modal.action,
-      autorizacao: isPackage ? null : authorization,
-      autorizador: isPackage ? null : authorizedBy.trim(),
+      autorizacao: isPackage ? null : authorization === "Outro" ? otherAuthorization.trim() : authorization,
+      autorizador: isPackage ? null : authorization === "Cadastro confirmado" ? person.nome : authorization === "Zeladoria" ? "Zeladoria" : authorizedBy === "Outro" ? otherApprover.trim() : authorizedBy || null,
+      movimentacao: isPackage ? null : movement,
+      servico: !isPackage && (person.tipo === "Prestador" || person.tipo === "Colaborador") ? (serviceType === "Outro" ? otherService.trim() : serviceType) : null,
       resultado: isPackage ? outcome : null, motivo: isPackage && outcome === "Não recebida" ? actualReason : null,
       destino: isPackage && outcome === "Recebida" ? actualDestination : null, empresa: isPackage ? actualCompany : null,
       tamanho: isPackage && outcome === "Recebida" ? size : null, tipoEncomenda: isPackage && outcome === "Recebida" ? (packageType === "Outros" ? otherPackageType.trim() : packageType) : null,
-      detalhe: detail.trim(), criadoEm: new Date().toISOString(),
+      detalhe: isPackage ? detail.trim() : "", criadoEm: new Date().toISOString(),
       envioWhatsapp: sendRequested ? "Simulado" : "Não solicitado"
     };
     save({ ...data, registros: [record, ...data.registros] });
@@ -115,7 +133,7 @@ function App() {
       <div className="history">{records.length ? records.map(r => <div className="entry" key={r.id}>
         <div className="entry-icon">{r.acao === "Encomenda" ? "▣" : "↗"}</div>
         <div className="entry-body"><strong>{r.acao} · {r.pessoaNome}</strong>
-          <p>{r.categoria}{r.resultado ? " · " + r.resultado : ""}{r.motivo ? " · " + r.motivo : ""}{r.autorizacao ? " · " + r.autorizacao : ""}{r.autorizador ? " · Autorizado por " + r.autorizador : ""}{r.destino ? " · " + r.destino : ""}{r.empresa ? " · " + r.empresa : ""}{r.detalhe ? " · " + r.detalhe : ""}</p>
+          <p>{r.categoria}{r.movimentacao ? " · " + r.movimentacao : ""}{r.servico ? " · " + r.servico : ""}{r.resultado ? " · " + r.resultado : ""}{r.motivo ? " · " + r.motivo : ""}{r.autorizacao ? " · " + r.autorizacao : ""}{r.autorizador ? " · Autorizado por " + r.autorizador : ""}{r.destino ? " · " + r.destino : ""}{r.empresa ? " · " + r.empresa : ""}{r.detalhe ? " · " + r.detalhe : ""}</p>
           {r.envioWhatsapp === "Simulado" && <small className="simulated">✓ Envio ao WhatsApp simulado · nenhuma mensagem real enviada</small>}
         </div><time>{new Date(r.criadoEm).toLocaleString("pt-BR")}</time>
       </div>) : <div className="empty">Nenhum registro nesta unidade ainda.</div>}</div>}
@@ -136,7 +154,15 @@ function App() {
         {destination === "Outro local" && <label>Qual local?<input required value={otherDestination} onChange={e => setOtherDestination(e.target.value)} placeholder="Local da encomenda" /></label>}
       </> : <><label>Motivo de não recebimento<select value={reason} onChange={e => setReason(e.target.value)}>{reasons.map(x => <option key={x}>{x}</option>)}</select></label>{reason === "Outros" && <label>Qual motivo?<input required value={otherReason} onChange={e => setOtherReason(e.target.value)} placeholder="Descreva o motivo" /></label>}</>}
       <p className="hint">O envio por WhatsApp é uma simulação nesta versão. Nenhuma mensagem real será enviada.</p>
-    </> : <><label>Tipo de movimentação<select value={detail} onChange={e => setDetail(e.target.value)} required><option value="">Selecione</option><option>Entrada</option><option>Saída</option></select></label><label>Forma de autorização<select value={authorization} onChange={e => setAuthorization(e.target.value)}>{authorizations.map(x => <option key={x}>{x}</option>)}</select></label><label>Quem autorizou / confirmou<input value={authorizedBy} onChange={e => setAuthorizedBy(e.target.value)} placeholder="Nome ou função, quando aplicável" /></label></>}
+    </> : <>
+      <div className="choice-group" role="group" aria-label="Movimentação"><button type="button" className={movement === "Entrada" ? "chosen" : ""} onClick={() => setMovement("Entrada")}>↘ Entrada</button><button type="button" className={movement === "Saída" ? "chosen" : ""} onClick={() => setMovement("Saída")}>↗ Saída</button></div>
+      {(modal.person?.tipo === "Prestador" || modal.person?.tipo === "Colaborador") && <><label>Tipo de serviço<select value={serviceType} onChange={e => setServiceType(e.target.value)}>{serviceTypes.map(x => <option key={x}>{x}</option>)}</select></label>{serviceType === "Outro" && <label>Qual serviço?<input required value={otherService} onChange={e => setOtherService(e.target.value)} /></label>}</>}
+      <label>Como foi liberado?<select value={authorization} onChange={e => { setAuthorization(e.target.value); setAuthorizedBy(""); }}>{(authorizationByType[modal.person?.tipo] || authorizationByType.Visitante).map(x => <option key={x}>{x}</option>)}</select></label>
+      {authorization === "Outro" && <label>Qual tipo de liberação?<input required value={otherAuthorization} onChange={e => setOtherAuthorization(e.target.value)} /></label>}
+      {!["Cadastro confirmado", "Zeladoria"].includes(authorization) && <label>Quem liberou?<select value={authorizedBy} onChange={e => setAuthorizedBy(e.target.value)} required><option value="" disabled>Selecione</option>{residents.filter(p => p.id !== modal.person?.id).map(p => <option key={p.id} value={p.nome}>{p.nome} · {p.tipo}</option>)}<option value="Outro">Outra pessoa / função</option></select></label>}
+      {authorizedBy === "Outro" && !["Cadastro confirmado", "Zeladoria"].includes(authorization) && <label>Nome ou função de quem liberou<input required value={otherApprover} onChange={e => setOtherApprover(e.target.value)} /></label>}
+      {authorization === "Pré-liberação informada" && <p className="hint">A pré-liberação ainda não é verificada por cadastro automático. Confirme a autorização antes de salvar.</p>}
+    </>}
     {modal.action === "Encomenda" && <label>Observação (opcional)<textarea value={detail} onChange={e => setDetail(e.target.value)} placeholder="Informações adicionais" /></label>}<div className="dialog-actions"><button type="button" className="outline" onClick={() => setModal(null)}>Cancelar</button><button type="submit" value="save">Salvar</button>{modal.action === "Encomenda" && <button type="submit" value="send" disabled={!modal.person || !(modal.person.id.startsWith("demo-") || validPhone(modal.person.telefone))}>Salvar e enviar ao WhatsApp</button>}</div></form></div>}
   </div>;
 }

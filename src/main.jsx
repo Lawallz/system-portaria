@@ -52,6 +52,7 @@ function App() {
   const [lookup, setLookup] = useState("");
   const [section, setSection] = useState("Atendimento");
   const [newRule, setNewRule] = useState("");
+  const [activeRuleId, setActiveRuleId] = useState(null);
   const [modal, setModal] = useState(null);
   const [authorization, setAuthorization] = useState("Interfone com morador");
   const [authorizedBy, setAuthorizedBy] = useState("");
@@ -81,6 +82,7 @@ function App() {
   const condoRecords = data.registros.filter(r => r.condominioId === condo?.id);
   const condoRules = data.regras?.[condo?.id] || [];
   const visibleRules = [...(condo?.id === "cond-001" ? regrasRendallDemo : []), ...condoRules];
+  const activeRule = visibleRules.find(rule => rule.id === activeRuleId);
   const residents = people.filter(p => ["Morador", "Proprietário", "Inquilino"].includes(p.tipo));
   const visiblePeople = people.filter(p => personFilter === "Todos" || (personFilter === "Moradores" && ["Morador", "Proprietário", "Inquilino"].includes(p.tipo)) || (personFilter === "Visitantes" && p.tipo === "Visitante") || (personFilter === "Serviços" && ["Prestador", "Colaborador"].includes(p.tipo)));
   const records = data.registros.filter(r => r.condominioId === condo?.id && r.unidade === unit);
@@ -140,7 +142,7 @@ function App() {
     save({ ...data, registros: [record, ...data.registros] });
     setModal(null); setMessage(sendRequested ? "Encomenda salva · envio ao WhatsApp simulado com sucesso. Nenhuma mensagem real foi enviada." : "Registro salvo neste navegador."); setTab("Histórico");
   }
-  function selectCondo(c) { setCondo(c); setUnit(""); setUnitInput(""); setTab("Pessoas"); setSection("Atendimento"); setLookup(""); setPersonFilter("Todos"); setMessage(""); }
+  function selectCondo(c) { setCondo(c); setUnit(""); setUnitInput(""); setTab("Pessoas"); setSection("Atendimento"); setLookup(""); setPersonFilter("Todos"); setActiveRuleId(null); setMessage(""); }
   function addRule(event) {
     event.preventDefault();
     if (!newRule.trim()) return;
@@ -169,6 +171,7 @@ function App() {
       {!condo ? <><div className="eyebrow">SISTEMA DE PORTARIA</div><h1>Um fluxo mais simples para cada atendimento.</h1><p className="lead">Selecione um condomínio para localizar uma unidade e registrar movimentações sem redigitar os dados de cada pessoa.</p><div className="welcome-grid"><div className="tile"><strong>0</strong><span>Rendall · empresa</span></div><div className="tile"><strong>52</strong><span>Condomínios atendidos</span></div><div className="tile"><strong>77</strong><span>Unidade de demonstração</span></div></div><div className="notice">Para testar: selecione Rendall (0) e abra a unidade 77. Os dados e registros são demonstrativos e ficam neste navegador.</div></> :
       <><div className="eyebrow">CONDOMÍNIO {condominios.indexOf(condo)} {condo.id === "cond-001" ? "· EMPRESA" : ""}</div><h1>{condo.nome}</h1><p className="lead">Encontre uma unidade, morador ou veículo e registre o atendimento.</p>
       <nav className="section-nav" aria-label="Seções do condomínio" onKeyDown={e => moveList(e, "button", "horizontal")}>{["Atendimento", "Encomendas", "Liberações", "Regras"].map(item => <button key={item} className={`nav-${item.toLowerCase()} ${section === item ? "active" : ""}`} onClick={() => setSection(item)}>{item}</button>)}</nav>
+      {visibleRules.length > 0 && <div className="quick-rules"><strong>Regras rápidas</strong><div className="quick-rule-buttons">{visibleRules.map((rule, index) => <button key={rule.id} type="button" aria-expanded={activeRuleId === rule.id} aria-controls={activeRuleId === rule.id ? "quick-rule-detail" : undefined} title={rule.titulo || `Regra ${index + 1}`} className={activeRuleId === rule.id ? "active" : ""} onClick={() => setActiveRuleId(activeRuleId === rule.id ? null : rule.id)}><span aria-hidden="true">{rule.icone || "📌"}</span><small>{rule.titulo || `Regra ${index + 1}`}</small></button>)}</div>{activeRule && <div id="quick-rule-detail" className="quick-rule-detail" role="status"><div><strong>{activeRule.titulo || "Regra adicional"}</strong>{activeRule.id.startsWith("demo-") && <small> · regra fictícia de demonstração</small>}<p>{activeRule.texto}</p></div><button type="button" onClick={() => setActiveRuleId(null)} aria-label="Fechar regra">×</button></div>}</div>}
       {section === "Regras" ? <div className="section-panel"><h2>Regras · {condo.nome}</h2>
         <p className="muted">{condo.id === "cond-001" ? "Exemplos fictícios para apresentação. Não use como regra operacional real." : "Regras cadastradas apenas neste navegador de demonstração."}</p>
         {visibleRules.length ? <div className="rule-list">{visibleRules.map((rule, index) => <div className="rule-row" key={rule.id}><span>{index + 1}</span><div className="rule-content"><strong>{rule.titulo || "Regra adicional"}</strong><p>{rule.texto}</p></div>{rule.id.startsWith("demo-") ? <small className="demo-rule-tag">Fictícia · demonstração</small> : <button className="outline" type="button" aria-label={`Remover regra ${index + 1}`} onClick={() => save({ ...data, regras: { ...data.regras, [condo.id]: condoRules.filter(item => item.id !== rule.id) } })}>Remover</button>}</div>)}</div> : <div className="empty">Nenhuma regra cadastrada para este condomínio.</div>}
